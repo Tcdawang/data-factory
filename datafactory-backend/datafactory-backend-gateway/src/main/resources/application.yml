@@ -1,0 +1,31 @@
+server:
+  port: 8080
+
+spring:
+  profiles:
+    active: local
+  application:
+    name: datafactory-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: datafactory-task
+              uri: lb://datafactory-task
+              predicates:
+                - Path=/task/**
+              filters:
+                - StripPrefix=1
+            - id: datafactory-executor
+              uri: lb://datafactory-executor
+              predicates:
+                - Path=/executor/**
+              filters:
+                - StripPrefix=1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.datafactory</groupId>
+        <artifactId>data-factory</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>datafactory-backend</artifactId>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>datafactory-backend-common</module>
+        <module>datafactory-backend-gateway</module>
+        <module>datafactory-backend-system</module>
+        <module>datafactory-backend-datasource</module>
+        <module>datafactory-backend-script</module>
+        <module>datafactory-backend-task</module>
+        <module>datafactory-backend-executor</module>
+        <module>datafactory-backend-openapi</module>
+        <module>datafactory-backend-log</module>
+        <module>datafactory-backend-scheduler</module>
+    </modules>
+</project>
+

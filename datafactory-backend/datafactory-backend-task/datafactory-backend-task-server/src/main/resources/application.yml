@@ -1,0 +1,22 @@
+server:
+  port: 18081
+
+spring:
+  profiles:
+    active: local
+  application:
+    name: datafactory-task
+  config:
+    import: "optional:nacos:datafactory-task.yaml"
+
+mybatis:
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.datafactory.task.domain
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
