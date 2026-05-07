@@ -1,6 +1,21 @@
 CREATE DATABASE IF NOT EXISTS data_factory DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE data_factory;
 
+CREATE TABLE IF NOT EXISTS df_task_category (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '任务分类ID',
+    parent_id BIGINT DEFAULT NULL COMMENT '父分类ID，逻辑外键',
+    category_name VARCHAR(100) NOT NULL COMMENT '分类名称',
+    sort_no INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    created_by BIGINT DEFAULT NULL COMMENT '创建人ID',
+    updated_by BIGINT DEFAULT NULL COMMENT '更新人ID',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0否，1是',
+    UNIQUE KEY uk_parent_name_deleted (parent_id, category_name, deleted),
+    KEY idx_parent_id (parent_id),
+    KEY idx_sort_no (sort_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务分类表';
+
 CREATE TABLE IF NOT EXISTS df_task (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '任务ID',
     task_name VARCHAR(100) NOT NULL COMMENT '任务名称',

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datafactory.task.mapper.TaskCategoryMapper">
+
+    <resultMap id="TaskCategoryResultMap" type="com.datafactory.task.domain.entity.TaskCategory">
+        <id column="id" property="id"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="sort_no" property="sortNo"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="updated_by" property="updatedBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="TaskCategoryColumns">
+        id, parent_id, category_name, sort_no, created_by, updated_by, created_at, updated_at, deleted
+    </sql>
+
+    <insert id="insert" parameterType="com.datafactory.task.domain.entity.TaskCategory" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO df_task_category (parent_id, category_name, sort_no, created_by, updated_by)
+        VALUES (#{parentId}, #{categoryName}, #{sortNo}, #{createdBy}, #{updatedBy})
+    </insert>
+
+    <select id="selectByCategoryName" resultMap="TaskCategoryResultMap">
+        SELECT <include refid="TaskCategoryColumns"/>
+        FROM df_task_category
+        WHERE category_name = #{categoryName}
+          AND deleted = 0
+        <choose>
+            <when test="parentId != null">
+              AND parent_id = #{parentId}
+            </when>
+            <otherwise>
+              AND parent_id IS NULL
+            </otherwise>
+        </choose>
+        LIMIT 1
+    </select>
+
+    <select id="selectAll" resultMap="TaskCategoryResultMap">
+        SELECT <include refid="TaskCategoryColumns"/>
+        FROM df_task_category
+        WHERE deleted = 0
+        ORDER BY sort_no ASC, id ASC
+    </select>
+</mapper>

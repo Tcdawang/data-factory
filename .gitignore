@@ -3,6 +3,8 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+datafactory-frontend/
+
 **/application-local.yml
 
 ### IntelliJ IDEA ###
