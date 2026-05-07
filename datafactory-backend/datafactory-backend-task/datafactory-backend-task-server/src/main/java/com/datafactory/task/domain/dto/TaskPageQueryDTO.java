@@ -16,4 +16,6 @@ public class TaskPageQueryDTO {
     private String status;
 
     private Long categoryId;
+
+    private String env;
 }

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datafactory.task.mapper.TaskVersionMapper">
+
+    <resultMap id="TaskVersionResultMap" type="com.datafactory.task.domain.entity.TaskVersion">
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="version_no" property="versionNo"/>
+        <result column="env" property="env"/>
+        <result column="version_status" property="versionStatus"/>
+        <result column="publish_status" property="publishStatus"/>
+        <result column="dag_json" property="dagJson"/>
+        <result column="dsl_json" property="dslJson"/>
+        <result column="input_schema_json" property="inputSchemaJson"/>
+        <result column="output_schema_json" property="outputSchemaJson"/>
+        <result column="test_status" property="testStatus"/>
+        <result column="test_execution_id" property="testExecutionId"/>
+        <result column="rollback_from_version_id" property="rollbackFromVersionId"/>
+        <result column="publish_time" property="publishTime"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="TaskVersionColumns">
+        id, task_id, version_no, env, version_status, publish_status, dag_json, dsl_json,
+        input_schema_json, output_schema_json, test_status, test_execution_id,
+        rollback_from_version_id, publish_time, created_by, created_at, updated_at, deleted
+    </sql>
+
+    <insert id="insert" parameterType="com.datafactory.task.domain.entity.TaskVersion"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO df_task_version (task_id, version_no, env, version_status, publish_status,
+                                     dag_json, dsl_json, input_schema_json, output_schema_json,
+                                     test_status, rollback_from_version_id, created_by)
+        VALUES (#{taskId}, #{versionNo}, #{env}, #{versionStatus}, #{publishStatus},
+                #{dagJson}, #{dslJson}, #{inputSchemaJson}, #{outputSchemaJson},
+                #{testStatus}, #{rollbackFromVersionId}, #{createdBy})
+    </insert>
+
+    <select id="selectById" resultMap="TaskVersionResultMap">
+        SELECT <include refid="TaskVersionColumns"/>
+        FROM df_task_version
+        WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <select id="selectByTaskId" resultMap="TaskVersionResultMap">
+        SELECT <include refid="TaskVersionColumns"/>
+        FROM df_task_version
+        WHERE task_id = #{taskId} AND deleted = 0
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+    <select id="selectByTaskIdAndEnv" resultMap="TaskVersionResultMap">
+        SELECT <include refid="TaskVersionColumns"/>
+        FROM df_task_version
+        WHERE task_id = #{taskId} AND env = #{env} AND deleted = 0
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+    <select id="selectLatestByTaskIdAndEnv" resultMap="TaskVersionResultMap">
+        SELECT <include refid="TaskVersionColumns"/>
+        FROM df_task_version
+        WHERE task_id = #{taskId} AND env = #{env} AND deleted = 0
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+</mapper>

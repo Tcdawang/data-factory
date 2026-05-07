@@ -6,14 +6,19 @@ import com.datafactory.task.domain.dto.TaskCreateDTO;
 import com.datafactory.task.domain.dto.TaskPageQueryDTO;
 import com.datafactory.task.domain.dto.TaskUpdateDTO;
 import com.datafactory.task.domain.entity.Task;
+import com.datafactory.task.domain.entity.TaskVersion;
+import com.datafactory.task.domain.vo.TaskVersionCompareVO;
+import com.datafactory.task.domain.vo.TaskVersionVO;
 import com.datafactory.task.domain.vo.TaskVO;
 import com.datafactory.task.mapper.TaskMapper;
+import com.datafactory.task.mapper.TaskVersionMapper;
 import com.datafactory.task.service.TaskService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class TaskServiceImpl implements TaskService {
@@ -22,9 +27,11 @@ public class TaskServiceImpl implements TaskService {
     private static final String DEFAULT_STATUS = "UNPUBLISHED";
 
     private final TaskMapper taskMapper;
+    private final TaskVersionMapper taskVersionMapper;
 
-    public TaskServiceImpl(TaskMapper taskMapper) {
+    public TaskServiceImpl(TaskMapper taskMapper, TaskVersionMapper taskVersionMapper) {
         this.taskMapper = taskMapper;
+        this.taskVersionMapper = taskVersionMapper;
     }
 
     @Override
@@ -76,7 +83,15 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public TaskVO getDetail(Long id) {
-        return toVO(requireTask(id));
+        Task task = requireTask(id);
+        TaskVO vo = toVO(task);
+        if (task.getCurrentVersionId() != null) {
+            TaskVersion version = taskVersionMapper.selectById(task.getCurrentVersionId());
+            if (version != null) {
+                vo.setLatestVersion(toVersionVO(version));
+            }
+        }
+        return vo;
     }
 
     @Override
@@ -86,9 +101,75 @@ public class TaskServiceImpl implements TaskService {
         long offset = (long) (queryDTO.getPageNo() - 1) * queryDTO.getPageSize();
         List<TaskVO> records = taskMapper.selectPage(queryDTO, offset, queryDTO.getPageSize())
                 .stream()
-                .map(this::toVO)
+                .map(task -> {
+                    TaskVO vo = toVO(task);
+                    if (task.getCurrentVersionId() != null) {
+                        TaskVersion version = taskVersionMapper.selectById(task.getCurrentVersionId());
+                        if (version != null) {
+                            vo.setLatestVersion(toVersionVO(version));
+                        }
+                    }
+                    return vo;
+                })
                 .toList();
         return new PageResult<>(records, total, queryDTO.getPageNo(), queryDTO.getPageSize());
+    }
+
+    @Override
+    public List<TaskVersionVO> listVersions(Long taskId, String env) {
+        requireTask(taskId);
+        List<TaskVersion> versions;
+        if (StringUtils.hasText(env)) {
+            versions = taskVersionMapper.selectByTaskIdAndEnv(taskId, env);
+        } else {
+            versions = taskVersionMapper.selectByTaskId(taskId);
+        }
+        return versions.stream().map(this::toVersionVO).toList();
+    }
+
+    @Override
+    public TaskVersionCompareVO compareVersions(Long taskId, Long sourceVersionId, Long targetVersionId) {
+        requireTask(taskId);
+        if (sourceVersionId == null || targetVersionId == null) {
+            throw new BizException(BIZ_ERROR_CODE, "源版本ID和目标版本ID不能为空");
+        }
+        if (sourceVersionId.equals(targetVersionId)) {
+            throw new BizException(BIZ_ERROR_CODE, "源版本和目标版本不能相同");
+        }
+
+        TaskVersion sourceVersion = taskVersionMapper.selectById(sourceVersionId);
+        if (sourceVersion == null || !sourceVersion.getTaskId().equals(taskId)) {
+            throw new BizException(BIZ_ERROR_CODE, "源版本不存在或不属于该任务");
+        }
+
+        TaskVersion targetVersion = taskVersionMapper.selectById(targetVersionId);
+        if (targetVersion == null || !targetVersion.getTaskId().equals(taskId)) {
+            throw new BizException(BIZ_ERROR_CODE, "目标版本不存在或不属于该任务");
+        }
+
+        TaskVersionCompareVO compareVO = new TaskVersionCompareVO();
+        compareVO.setSourceVersionId(sourceVersion.getId());
+        compareVO.setSourceVersionNo(sourceVersion.getVersionNo());
+        compareVO.setSourceEnv(sourceVersion.getEnv());
+        compareVO.setSourceDagJson(sourceVersion.getDagJson());
+        compareVO.setSourceDslJson(sourceVersion.getDslJson());
+        compareVO.setSourceInputSchemaJson(sourceVersion.getInputSchemaJson());
+        compareVO.setSourceOutputSchemaJson(sourceVersion.getOutputSchemaJson());
+
+        compareVO.setTargetVersionId(targetVersion.getId());
+        compareVO.setTargetVersionNo(targetVersion.getVersionNo());
+        compareVO.setTargetEnv(targetVersion.getEnv());
+        compareVO.setTargetDagJson(targetVersion.getDagJson());
+        compareVO.setTargetDslJson(targetVersion.getDslJson());
+        compareVO.setTargetInputSchemaJson(targetVersion.getInputSchemaJson());
+        compareVO.setTargetOutputSchemaJson(targetVersion.getOutputSchemaJson());
+
+        compareVO.setDagChanged(!Objects.equals(sourceVersion.getDagJson(), targetVersion.getDagJson()));
+        compareVO.setDslChanged(!Objects.equals(sourceVersion.getDslJson(), targetVersion.getDslJson()));
+        compareVO.setInputSchemaChanged(!Objects.equals(sourceVersion.getInputSchemaJson(), targetVersion.getInputSchemaJson()));
+        compareVO.setOutputSchemaChanged(!Objects.equals(sourceVersion.getOutputSchemaJson(), targetVersion.getOutputSchemaJson()));
+
+        return compareVO;
     }
 
     private Task requireTask(Long id) {
@@ -142,6 +223,28 @@ public class TaskServiceImpl implements TaskService {
         vo.setUpdatedBy(task.getUpdatedBy());
         vo.setCreatedAt(task.getCreatedAt());
         vo.setUpdatedAt(task.getUpdatedAt());
+        return vo;
+    }
+
+    private TaskVersionVO toVersionVO(TaskVersion version) {
+        TaskVersionVO vo = new TaskVersionVO();
+        vo.setId(version.getId());
+        vo.setTaskId(version.getTaskId());
+        vo.setVersionNo(version.getVersionNo());
+        vo.setEnv(version.getEnv());
+        vo.setVersionStatus(version.getVersionStatus());
+        vo.setPublishStatus(version.getPublishStatus());
+        vo.setDagJson(version.getDagJson());
+        vo.setDslJson(version.getDslJson());
+        vo.setInputSchemaJson(version.getInputSchemaJson());
+        vo.setOutputSchemaJson(version.getOutputSchemaJson());
+        vo.setTestStatus(version.getTestStatus());
+        vo.setTestExecutionId(version.getTestExecutionId());
+        vo.setRollbackFromVersionId(version.getRollbackFromVersionId());
+        vo.setPublishTime(version.getPublishTime());
+        vo.setCreatedBy(version.getCreatedBy());
+        vo.setCreatedAt(version.getCreatedAt());
+        vo.setUpdatedAt(version.getUpdatedAt());
         return vo;
     }
 }

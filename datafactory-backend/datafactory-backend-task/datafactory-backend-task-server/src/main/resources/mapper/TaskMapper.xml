@@ -94,6 +94,9 @@
         <if test="categoryId != null">
           AND category_id = #{categoryId}
         </if>
+        <if test="env != null and env != ''">
+          AND id IN (SELECT tv.task_id FROM df_task_version tv WHERE tv.env = #{env} AND tv.deleted = 0)
+        </if>
     </select>
 
     <select id="selectPage" resultMap="TaskResultMap">
@@ -111,6 +114,9 @@
         </if>
         <if test="query.categoryId != null">
           AND category_id = #{query.categoryId}
+        </if>
+        <if test="query.env != null and query.env != ''">
+          AND id IN (SELECT tv.task_id FROM df_task_version tv WHERE tv.env = #{query.env} AND tv.deleted = 0)
         </if>
         ORDER BY updated_at DESC, id DESC
         LIMIT #{offset}, #{pageSize}

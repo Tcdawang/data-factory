@@ -28,4 +28,6 @@ public class TaskVO {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    private TaskVersionVO latestVersion;
 }
