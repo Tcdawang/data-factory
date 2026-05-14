@@ -170,6 +170,45 @@ CREATE TABLE IF NOT EXISTS df_task_execution (
     KEY idx_start_time (start_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务执行日志表';
 
+CREATE TABLE IF NOT EXISTS df_node_execution_log (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    execution_id VARCHAR(64) NOT NULL COMMENT '执行批次ID',
+    node_id VARCHAR(64) NOT NULL COMMENT '节点ID',
+    node_name VARCHAR(128) DEFAULT NULL COMMENT '节点名称',
+    node_type VARCHAR(32) NOT NULL COMMENT '节点类型',
+    status VARCHAR(20) NOT NULL COMMENT '节点执行状态: RUNNING/SUCCESS/FAILED/SKIPPED',
+    start_time DATETIME DEFAULT NULL COMMENT '开始时间',
+    end_time DATETIME DEFAULT NULL COMMENT '结束时间',
+    input_data TEXT DEFAULT NULL COMMENT '输入数据JSON',
+    output_data TEXT DEFAULT NULL COMMENT '输出数据JSON',
+    error_message TEXT DEFAULT NULL COMMENT '错误信息',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    KEY idx_execution_id (execution_id),
+    KEY idx_node_id (node_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='节点执行日志表';
+
+CREATE TABLE IF NOT EXISTS df_task_execution (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    task_id BIGINT NOT NULL COMMENT '任务ID',
+    task_code VARCHAR(64) NOT NULL COMMENT '任务编码',
+    environment VARCHAR(20) NOT NULL COMMENT '环境: DEV/TEST/PROD',
+    execution_id VARCHAR(64) NOT NULL COMMENT '执行批次ID',
+    status VARCHAR(20) NOT NULL DEFAULT 'INIT' COMMENT '状态: INIT/RUNNING/SUCCESS/FAILED/STOPPED',
+    trigger_type VARCHAR(20) NOT NULL COMMENT '触发方式: MANUAL/SCHEDULED/API',
+    trigger_user VARCHAR(64) DEFAULT NULL COMMENT '触发人',
+    start_time DATETIME DEFAULT NULL COMMENT '开始时间',
+    end_time DATETIME DEFAULT NULL COMMENT '结束时间',
+    error_message TEXT DEFAULT NULL COMMENT '错误信息',
+    delete_flag TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0否 1是',
+    created_by VARCHAR(64) DEFAULT NULL COMMENT '创建人',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_by VARCHAR(64) DEFAULT NULL COMMENT '更新人',
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_execution_id (execution_id),
+    KEY idx_task_id (task_id),
+    KEY idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务执行记录表';
+
 CREATE TABLE IF NOT EXISTS df_node_execution (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '节点执行ID',
     task_execution_id BIGINT NOT NULL COMMENT '任务执行ID，逻辑外键',

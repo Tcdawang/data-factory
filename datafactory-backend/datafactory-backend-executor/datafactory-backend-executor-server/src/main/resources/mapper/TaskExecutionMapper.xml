@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datafactory.executor.mapper.TaskExecutionMapper">
+
+    <resultMap id="TaskExecutionResultMap" type="com.datafactory.executor.domain.entity.TaskExecution">
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="task_code" property="taskCode"/>
+        <result column="environment" property="environment"/>
+        <result column="execution_id" property="executionId"/>
+        <result column="status" property="status"/>
+        <result column="trigger_type" property="triggerType"/>
+        <result column="trigger_user" property="triggerUser"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="delete_flag" property="deleteFlag"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_time" property="createdTime"/>
+        <result column="updated_by" property="updatedBy"/>
+        <result column="updated_time" property="updatedTime"/>
+    </resultMap>
+
+    <sql id="TaskExecutionColumns">
+        id, task_id, task_code, environment, execution_id, status,
+        trigger_type, trigger_user, start_time, end_time, error_message,
+        delete_flag, created_by, created_time, updated_by, updated_time
+    </sql>
+
+    <insert id="insert" parameterType="com.datafactory.executor.domain.entity.TaskExecution"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO df_task_execution (task_id, task_code, environment, execution_id, status,
+                                       trigger_type, trigger_user, start_time, end_time,
+                                       error_message, created_by)
+        VALUES (#{taskId}, #{taskCode}, #{environment}, #{executionId}, #{status},
+                #{triggerType}, #{triggerUser}, #{startTime}, #{endTime},
+                #{errorMessage}, #{createdBy})
+    </insert>
+
+    <select id="selectById" resultMap="TaskExecutionResultMap">
+        SELECT <include refid="TaskExecutionColumns"/>
+        FROM df_task_execution
+        WHERE id = #{id}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByExecutionId" resultMap="TaskExecutionResultMap">
+        SELECT <include refid="TaskExecutionColumns"/>
+        FROM df_task_execution
+        WHERE execution_id = #{executionId}
+          AND delete_flag = 0
+    </select>
+
+    <update id="updateStatus">
+        UPDATE df_task_execution
+        SET status = #{status},
+            updated_by = #{updatedBy}
+        WHERE execution_id = #{executionId}
+          AND delete_flag = 0
+    </update>
+
+</mapper>

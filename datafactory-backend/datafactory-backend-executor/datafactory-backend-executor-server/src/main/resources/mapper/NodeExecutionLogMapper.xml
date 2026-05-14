@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datafactory.executor.mapper.NodeExecutionLogMapper">
+
+    <resultMap id="NodeExecutionLogResultMap" type="com.datafactory.executor.domain.entity.NodeExecutionLog">
+        <id column="id" property="id"/>
+        <result column="execution_id" property="executionId"/>
+        <result column="node_id" property="nodeId"/>
+        <result column="node_name" property="nodeName"/>
+        <result column="node_type" property="nodeType"/>
+        <result column="status" property="status"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="input_data" property="inputData"/>
+        <result column="output_data" property="outputData"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="created_time" property="createdTime"/>
+    </resultMap>
+
+    <sql id="NodeExecutionLogColumns">
+        id, execution_id, node_id, node_name, node_type, status,
+        start_time, end_time, input_data, output_data, error_message, created_time
+    </sql>
+
+    <insert id="insert" parameterType="com.datafactory.executor.domain.entity.NodeExecutionLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO df_node_execution_log (execution_id, node_id, node_name, node_type, status,
+                                           start_time, end_time, input_data, output_data, error_message)
+        VALUES (#{executionId}, #{nodeId}, #{nodeName}, #{nodeType}, #{status},
+                #{startTime}, #{endTime}, #{inputData}, #{outputData}, #{errorMessage})
+    </insert>
+
+    <select id="selectById" resultMap="NodeExecutionLogResultMap">
+        SELECT <include refid="NodeExecutionLogColumns"/>
+        FROM df_node_execution_log
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByExecutionId" resultMap="NodeExecutionLogResultMap">
+        SELECT <include refid="NodeExecutionLogColumns"/>
+        FROM df_node_execution_log
+        WHERE execution_id = #{executionId}
+        ORDER BY start_time ASC, id ASC
+    </select>
+
+</mapper>
