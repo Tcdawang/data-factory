@@ -1,11 +1,14 @@
 package com.datafactory.openapi.service.impl;
 
 import com.datafactory.common.exception.BizException;
+import com.datafactory.common.result.PageResult;
 import com.datafactory.common.result.Result;
 import com.datafactory.openapi.domain.CallResultVO;
 import com.datafactory.openapi.domain.ExecutionRunVO;
 import com.datafactory.openapi.domain.OpenApi;
 import com.datafactory.openapi.domain.OpenApiCallLog;
+import com.datafactory.openapi.domain.OpenApiCallLogQueryDTO;
+import com.datafactory.openapi.domain.OpenApiCallLogVO;
 import com.datafactory.openapi.domain.OpenApiDTO;
 import com.datafactory.openapi.feign.ExecutorClient;
 import com.datafactory.openapi.mapper.OpenApiCallLogMapper;
@@ -135,6 +138,18 @@ public class OpenApiServiceImpl implements OpenApiService {
         if (dto.getTaskId() == null) {
             throw new BizException(BIZ_ERROR_CODE, "绑定任务不能为空");
         }
+    }
+
+    @Override
+    public PageResult<OpenApiCallLogVO> pageCallLogs(OpenApiCallLogQueryDTO queryDTO) {
+        OpenApiCallLogQueryDTO query = queryDTO == null ? new OpenApiCallLogQueryDTO() : queryDTO;
+        int pageNo = query.getPageNo() == null || query.getPageNo() < 1 ? 1 : query.getPageNo();
+        int pageSize = query.getPageSize() == null || query.getPageSize() < 1 ? 10 : Math.min(query.getPageSize(), 100);
+        query.setPageNo(pageNo);
+        query.setPageSize(pageSize);
+        long total = openApiCallLogMapper.count(query);
+        List<OpenApiCallLogVO> records = openApiCallLogMapper.page(query, (long) (pageNo - 1) * pageSize, pageSize);
+        return new PageResult<>(records, total, pageNo, pageSize);
     }
 
     private OpenApi require(Long id) {

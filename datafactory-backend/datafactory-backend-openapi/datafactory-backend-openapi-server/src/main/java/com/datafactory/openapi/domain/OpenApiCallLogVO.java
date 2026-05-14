@@ -3,9 +3,10 @@ package com.datafactory.openapi.domain;
 import lombok.Data;
 
 @Data
-public class OpenApiCallLog {
+public class OpenApiCallLogVO {
     private Long id;
     private Long openApiId;
+    private String apiName;
     private String apiPath;
     private Long taskId;
     private String executionId;

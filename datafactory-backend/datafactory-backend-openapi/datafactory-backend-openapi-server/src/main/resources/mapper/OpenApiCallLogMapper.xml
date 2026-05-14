@@ -26,4 +26,44 @@
             #{errorMessage}
         )
     </insert>
+
+    <sql id="QueryWhere">
+        FROM df_open_api_call_log l
+        LEFT JOIN df_open_api a ON a.id = l.open_api_id
+        WHERE 1 = 1
+        <if test="query.apiPath != null and query.apiPath != ''">
+            AND l.api_path LIKE CONCAT('%', #{query.apiPath}, '%')
+        </if>
+        <if test="query.status != null and query.status != ''">
+            AND l.status = #{query.status}
+        </if>
+        <if test="query.taskId != null">
+            AND l.task_id = #{query.taskId}
+        </if>
+        <if test="query.executionId != null and query.executionId != ''">
+            AND l.execution_id LIKE CONCAT('%', #{query.executionId}, '%')
+        </if>
+    </sql>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(1)
+        <include refid="QueryWhere"/>
+    </select>
+
+    <select id="page" resultType="com.datafactory.openapi.domain.OpenApiCallLogVO">
+        SELECT l.id,
+               l.open_api_id AS openApiId,
+               a.api_name AS apiName,
+               l.api_path AS apiPath,
+               l.task_id AS taskId,
+               l.execution_id AS executionId,
+               l.request_json AS requestJson,
+               l.response_json AS responseJson,
+               l.status,
+               l.error_message AS errorMessage,
+               l.created_at AS createdAt
+        <include refid="QueryWhere"/>
+        ORDER BY l.created_at DESC, l.id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
 </mapper>

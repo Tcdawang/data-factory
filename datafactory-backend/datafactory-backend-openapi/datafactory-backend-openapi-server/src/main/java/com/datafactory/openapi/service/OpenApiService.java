@@ -2,7 +2,10 @@ package com.datafactory.openapi.service;
 
 import com.datafactory.openapi.domain.CallResultVO;
 import com.datafactory.openapi.domain.OpenApi;
+import com.datafactory.openapi.domain.OpenApiCallLogQueryDTO;
+import com.datafactory.openapi.domain.OpenApiCallLogVO;
 import com.datafactory.openapi.domain.OpenApiDTO;
+import com.datafactory.common.result.PageResult;
 
 import java.util.List;
 import java.util.Map;
@@ -23,4 +26,6 @@ public interface OpenApiService {
     List<OpenApi> list();
 
     CallResultVO call(String apiPath, String apiKey, Map<String, Object> requestBody);
+
+    PageResult<OpenApiCallLogVO> pageCallLogs(OpenApiCallLogQueryDTO queryDTO);
 }

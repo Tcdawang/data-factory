@@ -1,8 +1,11 @@
 package com.datafactory.openapi.controller;
 
 import com.datafactory.common.result.Result;
+import com.datafactory.common.result.PageResult;
 import com.datafactory.openapi.domain.CallResultVO;
 import com.datafactory.openapi.domain.OpenApi;
+import com.datafactory.openapi.domain.OpenApiCallLogQueryDTO;
+import com.datafactory.openapi.domain.OpenApiCallLogVO;
 import com.datafactory.openapi.domain.OpenApiDTO;
 import com.datafactory.openapi.service.OpenApiService;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -65,6 +68,11 @@ public class OpenApiController {
     @GetMapping
     public Result<List<OpenApi>> list() {
         return Result.success(openApiService.list());
+    }
+
+    @GetMapping("/call-logs")
+    public Result<PageResult<OpenApiCallLogVO>> pageCallLogs(OpenApiCallLogQueryDTO queryDTO) {
+        return Result.success(openApiService.pageCallLogs(queryDTO));
     }
 
     @PostMapping("/call/{apiPath}")

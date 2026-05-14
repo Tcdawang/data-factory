@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datafactory.openapi.mapper.DashboardMapper">
+
+    <select id="countDatasources" resultType="long">
+        SELECT COUNT(1)
+        FROM df_datasource
+        WHERE deleted = 0
+    </select>
+
+    <select id="countTasks" resultType="long">
+        SELECT COUNT(1)
+        FROM df_task
+        WHERE deleted = 0
+    </select>
+
+    <select id="countOpenApis" resultType="long">
+        SELECT COUNT(1)
+        FROM df_open_api
+        WHERE deleted = 0
+    </select>
+
+    <select id="countTodayExecutions" resultType="long">
+        SELECT COUNT(1)
+        FROM df_task_execution
+        WHERE delete_flag = 0
+          AND created_time &gt;= CURDATE()
+    </select>
+
+    <select id="countLast24hExecutions" resultType="long">
+        SELECT COUNT(1)
+        FROM df_task_execution
+        WHERE delete_flag = 0
+          AND created_time &gt;= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    </select>
+
+    <select id="countLast24hSuccessExecutions" resultType="long">
+        SELECT COUNT(1)
+        FROM df_task_execution
+        WHERE delete_flag = 0
+          AND status = 'SUCCESS'
+          AND created_time &gt;= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    </select>
+
+    <select id="selectRecentExecutions" resultType="com.datafactory.openapi.domain.RecentExecutionVO">
+        SELECT e.id,
+               e.task_id AS taskId,
+               e.task_code AS taskCode,
+               t.task_name AS taskName,
+               e.environment,
+               e.execution_id AS executionId,
+               e.status,
+               e.trigger_type AS triggerType,
+               e.start_time AS startTime,
+               e.end_time AS endTime,
+               e.created_time AS createdTime
+        FROM df_task_execution e
+        LEFT JOIN df_task t ON t.id = e.task_id AND t.deleted = 0
+        WHERE e.delete_flag = 0
+        ORDER BY e.created_time DESC, e.id DESC
+        LIMIT #{limit}
+    </select>
+</mapper>
