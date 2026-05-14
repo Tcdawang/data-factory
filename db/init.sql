@@ -147,29 +147,6 @@ CREATE TABLE IF NOT EXISTS df_task_trigger (
     KEY idx_schedule_id (schedule_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务触发配置表';
 
-CREATE TABLE IF NOT EXISTS df_task_execution (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '任务执行ID',
-    trace_id VARCHAR(100) NOT NULL COMMENT '链路追踪ID',
-    task_id BIGINT NOT NULL COMMENT '任务ID，逻辑外键',
-    task_version_id BIGINT NOT NULL COMMENT '任务版本ID，逻辑外键',
-    trigger_type VARCHAR(30) NOT NULL COMMENT '触发类型：MANUAL/API/SCHEDULE/TEST',
-    trigger_source VARCHAR(100) DEFAULT NULL COMMENT '触发来源',
-    execution_status VARCHAR(30) NOT NULL COMMENT '执行状态：RUNNING/SUCCESS/FAILED/TIMEOUT/CANCELED',
-    input_json LONGTEXT DEFAULT NULL COMMENT '任务入参',
-    output_json LONGTEXT DEFAULT NULL COMMENT '任务出参',
-    error_message TEXT DEFAULT NULL COMMENT '错误信息',
-    start_time DATETIME NOT NULL COMMENT '开始时间',
-    end_time DATETIME DEFAULT NULL COMMENT '结束时间',
-    duration_ms BIGINT DEFAULT NULL COMMENT '耗时毫秒',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    KEY idx_trace_id (trace_id),
-    KEY idx_task_id (task_id),
-    KEY idx_task_version_id (task_version_id),
-    KEY idx_execution_status (execution_status),
-    KEY idx_trigger_type (trigger_type),
-    KEY idx_start_time (start_time)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务执行日志表';
-
 CREATE TABLE IF NOT EXISTS df_node_execution_log (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     execution_id VARCHAR(64) NOT NULL COMMENT '执行批次ID',

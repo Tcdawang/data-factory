@@ -6,9 +6,6 @@ spring:
     active: local
   application:
     name: datafactory-executor
-  config:
-    import: "optional:nacos:datafactory-executor.yaml"
-
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
   type-aliases-package: com.datafactory.executor.domain

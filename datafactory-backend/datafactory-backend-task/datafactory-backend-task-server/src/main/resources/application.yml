@@ -6,8 +6,6 @@ spring:
     active: local
   application:
     name: datafactory-task
-  config:
-    import: "optional:nacos:datafactory-task.yaml"
 
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
@@ -20,3 +18,4 @@ management:
     web:
       exposure:
         include: health,info
+  
