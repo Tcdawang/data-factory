@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datafactory.task.mapper.TaskEdgeMapper">
+    <resultMap id="TaskEdgeResultMap" type="com.datafactory.task.domain.entity.TaskEdge">
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="task_version_id" property="taskVersionId"/>
+        <result column="source_node_key" property="sourceNodeKey"/>
+        <result column="target_node_key" property="targetNodeKey"/>
+        <result column="condition_expr" property="conditionExpr"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO df_task_edge (task_id, task_version_id, source_node_key, target_node_key, condition_expr, sort_order)
+        VALUES
+        <foreach collection="edges" item="edge" separator=",">
+            (#{edge.taskId}, #{edge.taskVersionId}, #{edge.sourceNodeKey}, #{edge.targetNodeKey},
+             #{edge.conditionExpr}, #{edge.sortOrder})
+        </foreach>
+    </insert>
+
+    <update id="deleteByVersionId">
+        UPDATE df_task_edge SET deleted = 1 WHERE task_version_id = #{taskVersionId} AND deleted = 0
+    </update>
+
+    <select id="selectByVersionId" resultMap="TaskEdgeResultMap">
+        SELECT id, task_id, task_version_id, source_node_key, target_node_key, condition_expr,
+               sort_order, created_at, updated_at, deleted
+        FROM df_task_edge
+        WHERE task_version_id = #{taskVersionId} AND deleted = 0
+        ORDER BY sort_order ASC, id ASC
+    </select>
+</mapper>

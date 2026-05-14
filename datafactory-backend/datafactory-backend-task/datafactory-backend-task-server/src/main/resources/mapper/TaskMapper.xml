@@ -49,6 +49,15 @@
           AND deleted = 0
     </update>
 
+    <update id="updatePublishState">
+        UPDATE df_task
+        SET status = #{status},
+            current_version_id = #{currentVersionId},
+            updated_by = #{updatedBy}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
     <select id="selectById" resultMap="TaskResultMap">
         SELECT <include refid="TaskColumns"/>
         FROM df_task
@@ -77,6 +86,22 @@
         </if>
         LIMIT 1
     </select>
+
+    <select id="selectEnabled" resultMap="TaskResultMap">
+        SELECT <include refid="TaskColumns"/>
+        FROM df_task
+        WHERE status = 'ENABLED'
+          AND deleted = 0
+        ORDER BY updated_at DESC, id DESC
+    </select>
+
+    <update id="updateStatus">
+        UPDATE df_task
+        SET status = #{status},
+            updated_by = #{updatedBy}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
 
     <select id="countPage" parameterType="com.datafactory.task.domain.dto.TaskPageQueryDTO" resultType="long">
         SELECT COUNT(1)

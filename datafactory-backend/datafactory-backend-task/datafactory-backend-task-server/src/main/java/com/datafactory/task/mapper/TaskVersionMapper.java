@@ -17,4 +17,25 @@ public interface TaskVersionMapper {
     List<TaskVersion> selectByTaskIdAndEnv(@Param("taskId") Long taskId, @Param("env") String env);
 
     TaskVersion selectLatestByTaskIdAndEnv(@Param("taskId") Long taskId, @Param("env") String env);
+
+    TaskVersion selectCurrentByTaskIdAndEnv(@Param("taskId") Long taskId, @Param("env") String env);
+
+    int countByTaskIdAndEnv(@Param("taskId") Long taskId, @Param("env") String env);
+
+    int updateDag(TaskVersion taskVersion);
+
+    int updatePublishStatus(@Param("id") Long id,
+                            @Param("versionStatus") String versionStatus,
+                            @Param("publishStatus") String publishStatus,
+                            @Param("changeLog") String changeLog);
+
+    int clearCurrentByTaskIdAndEnv(@Param("taskId") Long taskId, @Param("env") String env);
+
+    int setCurrent(@Param("id") Long id);
+
+    int logicDelete(@Param("id") Long id);
+
+    int updateTestStatus(@Param("id") Long id,
+                         @Param("testStatus") String testStatus,
+                         @Param("testExecutionId") Long testExecutionId);
 }

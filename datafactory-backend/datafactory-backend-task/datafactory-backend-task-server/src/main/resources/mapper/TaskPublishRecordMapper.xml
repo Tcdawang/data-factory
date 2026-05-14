@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datafactory.task.mapper.TaskPublishRecordMapper">
+    <resultMap id="TaskPublishRecordResultMap" type="com.datafactory.task.domain.entity.TaskPublishRecord">
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="task_version_id" property="taskVersionId"/>
+        <result column="source_env" property="sourceEnv"/>
+        <result column="target_env" property="targetEnv"/>
+        <result column="publish_type" property="publishType"/>
+        <result column="before_version_id" property="beforeVersionId"/>
+        <result column="after_version_id" property="afterVersionId"/>
+        <result column="remark" property="remark"/>
+        <result column="operator_id" property="operatorId"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.datafactory.task.domain.entity.TaskPublishRecord">
+        INSERT INTO df_task_publish_record (task_id, task_version_id, source_env, target_env, publish_type,
+                                            before_version_id, after_version_id, remark, operator_id)
+        VALUES (#{taskId}, #{taskVersionId}, #{sourceEnv}, #{targetEnv}, #{publishType},
+                #{beforeVersionId}, #{afterVersionId}, #{remark}, #{operatorId})
+    </insert>
+
+    <select id="selectByTaskId" resultMap="TaskPublishRecordResultMap">
+        SELECT id, task_id, task_version_id, source_env, target_env, publish_type,
+               before_version_id, after_version_id, remark, operator_id
+        FROM df_task_publish_record
+        WHERE task_id = #{taskId}
+        ORDER BY operated_at DESC, id DESC
+    </select>
+</mapper>

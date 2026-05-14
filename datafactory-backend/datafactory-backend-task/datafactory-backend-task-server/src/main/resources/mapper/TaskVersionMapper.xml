@@ -16,6 +16,9 @@
         <result column="test_status" property="testStatus"/>
         <result column="test_execution_id" property="testExecutionId"/>
         <result column="rollback_from_version_id" property="rollbackFromVersionId"/>
+        <result column="change_log" property="changeLog"/>
+        <result column="is_current" property="isCurrent"/>
+        <result column="env_status" property="envStatus"/>
         <result column="publish_time" property="publishTime"/>
         <result column="created_by" property="createdBy"/>
         <result column="created_at" property="createdAt"/>
@@ -26,17 +29,17 @@
     <sql id="TaskVersionColumns">
         id, task_id, version_no, env, version_status, publish_status, dag_json, dsl_json,
         input_schema_json, output_schema_json, test_status, test_execution_id,
-        rollback_from_version_id, publish_time, created_by, created_at, updated_at, deleted
+        rollback_from_version_id, change_log, is_current, env_status, publish_time, created_by, created_at, updated_at, deleted
     </sql>
 
     <insert id="insert" parameterType="com.datafactory.task.domain.entity.TaskVersion"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO df_task_version (task_id, version_no, env, version_status, publish_status,
                                      dag_json, dsl_json, input_schema_json, output_schema_json,
-                                     test_status, rollback_from_version_id, created_by)
+                                     test_status, rollback_from_version_id, change_log, is_current, env_status, created_by)
         VALUES (#{taskId}, #{versionNo}, #{env}, #{versionStatus}, #{publishStatus},
                 #{dagJson}, #{dslJson}, #{inputSchemaJson}, #{outputSchemaJson},
-                #{testStatus}, #{rollbackFromVersionId}, #{createdBy})
+                #{testStatus}, #{rollbackFromVersionId}, #{changeLog}, #{isCurrent}, #{envStatus}, #{createdBy})
     </insert>
 
     <select id="selectById" resultMap="TaskVersionResultMap">
@@ -49,14 +52,14 @@
         SELECT <include refid="TaskVersionColumns"/>
         FROM df_task_version
         WHERE task_id = #{taskId} AND deleted = 0
-        ORDER BY created_at DESC, id DESC
+        ORDER BY is_current DESC, created_at DESC, id DESC
     </select>
 
     <select id="selectByTaskIdAndEnv" resultMap="TaskVersionResultMap">
         SELECT <include refid="TaskVersionColumns"/>
         FROM df_task_version
         WHERE task_id = #{taskId} AND env = #{env} AND deleted = 0
-        ORDER BY created_at DESC, id DESC
+        ORDER BY is_current DESC, created_at DESC, id DESC
     </select>
 
     <select id="selectLatestByTaskIdAndEnv" resultMap="TaskVersionResultMap">
@@ -66,5 +69,61 @@
         ORDER BY created_at DESC, id DESC
         LIMIT 1
     </select>
+
+    <select id="selectCurrentByTaskIdAndEnv" resultMap="TaskVersionResultMap">
+        SELECT <include refid="TaskVersionColumns"/>
+        FROM df_task_version
+        WHERE task_id = #{taskId} AND env = #{env} AND is_current = 1 AND deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="countByTaskIdAndEnv" resultType="int">
+        SELECT COUNT(1)
+        FROM df_task_version
+        WHERE task_id = #{taskId} AND env = #{env} AND deleted = 0
+    </select>
+
+    <update id="updateDag" parameterType="com.datafactory.task.domain.entity.TaskVersion">
+        UPDATE df_task_version
+        SET dag_json = #{dagJson},
+            dsl_json = #{dslJson},
+            input_schema_json = #{inputSchemaJson},
+            output_schema_json = #{outputSchemaJson}
+        WHERE id = #{id} AND task_id = #{taskId} AND deleted = 0
+    </update>
+
+    <update id="updatePublishStatus">
+        UPDATE df_task_version
+        SET version_status = #{versionStatus},
+            publish_status = #{publishStatus},
+            change_log = #{changeLog},
+            publish_time = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="clearCurrentByTaskIdAndEnv">
+        UPDATE df_task_version
+        SET is_current = 0
+        WHERE task_id = #{taskId} AND env = #{env} AND deleted = 0
+    </update>
+
+    <update id="setCurrent">
+        UPDATE df_task_version
+        SET is_current = 1
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="logicDelete">
+        UPDATE df_task_version
+        SET deleted = 1, is_current = 0
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="updateTestStatus">
+        UPDATE df_task_version
+        SET test_status = #{testStatus},
+            test_execution_id = #{testExecutionId}
+        WHERE id = #{id} AND deleted = 0
+    </update>
 
 </mapper>

@@ -1,11 +1,14 @@
 package com.datafactory.executor.service;
 
+import com.datafactory.common.result.PageResult;
 import com.datafactory.executor.domain.vo.ExecutionStatusVO;
 import com.datafactory.executor.domain.vo.NodeExecutionLogVO;
 
 import java.util.List;
 
 public interface ExecutionQueryService {
+
+    PageResult<ExecutionStatusVO> pageExecutions(Integer pageNo, Integer pageSize);
 
     ExecutionStatusVO getExecutionStatus(String executionId);
 

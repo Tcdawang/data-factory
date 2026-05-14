@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datafactory.openapi.mapper.OpenApiMapper">
+
+    <resultMap id="OpenApiResultMap" type="com.datafactory.openapi.domain.OpenApi">
+        <id column="id" property="id"/>
+        <result column="api_name" property="apiName"/>
+        <result column="api_path" property="apiPath"/>
+        <result column="task_id" property="taskId"/>
+        <result column="api_key" property="apiKey"/>
+        <result column="status" property="status"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="updated_by" property="updatedBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="OpenApiColumns">
+        id,
+        api_name,
+        api_path,
+        task_id,
+        api_key,
+        status,
+        created_by,
+        updated_by,
+        created_at,
+        updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.datafactory.openapi.domain.OpenApi" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO df_open_api (
+            api_name,
+            api_path,
+            task_id,
+            api_key,
+            status,
+            created_by,
+            updated_by
+        )
+        VALUES (
+            #{apiName},
+            #{apiPath},
+            #{taskId},
+            #{apiKey},
+            #{status},
+            #{createdBy},
+            #{updatedBy}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.datafactory.openapi.domain.OpenApi">
+        UPDATE df_open_api
+        SET api_name = #{apiName},
+            api_path = #{apiPath},
+            task_id = #{taskId},
+            api_key = #{apiKey},
+            status = #{status},
+            updated_by = #{updatedBy}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <update id="updateStatus">
+        UPDATE df_open_api
+        SET status = #{status},
+            updated_by = #{operatorId}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <update id="delete">
+        UPDATE df_open_api
+        SET deleted = 1,
+            updated_by = #{operatorId}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <select id="selectById" resultMap="OpenApiResultMap">
+        SELECT
+        <include refid="OpenApiColumns"/>
+        FROM df_open_api
+        WHERE id = #{id}
+          AND deleted = 0
+    </select>
+
+    <select id="selectByPath" resultMap="OpenApiResultMap">
+        SELECT
+        <include refid="OpenApiColumns"/>
+        FROM df_open_api
+        WHERE api_path = #{apiPath}
+          AND deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="list" resultMap="OpenApiResultMap">
+        SELECT
+        <include refid="OpenApiColumns"/>
+        FROM df_open_api
+        WHERE deleted = 0
+        ORDER BY updated_at DESC
+    </select>
+
+</mapper>

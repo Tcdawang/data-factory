@@ -23,6 +23,24 @@ spring:
                 - Path=/executor/**
               filters:
                 - StripPrefix=1
+            - id: datafactory-datasource
+              uri: lb://datafactory-datasource
+              predicates:
+                - Path=/datasource/**
+              filters:
+                - StripPrefix=1
+            - id: datafactory-openapi
+              uri: lb://datafactory-openapi
+              predicates:
+                - Path=/openapi/**
+              filters:
+                - StripPrefix=1
+            - id: datafactory-log
+              uri: lb://datafactory-executor
+              predicates:
+                - Path=/log/**
+              filters:
+                - StripPrefix=1
 
 management:
   endpoints:

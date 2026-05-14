@@ -2,6 +2,8 @@ package com.datafactory.executor.domain.entity;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class TaskAggregation {
 
@@ -15,5 +17,13 @@ public class TaskAggregation {
 
     private String dslContent;
 
+    private Long versionId;
+
     private String version;
+
+    private String dagJson;
+
+    private List<TaskNode> nodes;
+
+    private List<TaskEdge> edges;
 }

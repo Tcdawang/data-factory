@@ -1,0 +1,18 @@
+server:
+  port: 18083
+
+spring:
+  profiles:
+    active: local
+  application:
+    name: datafactory-datasource
+  cloud:
+    nacos:
+      config:
+        import-check:
+          enabled: false
+
+mybatis:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true

@@ -51,9 +51,25 @@
           AND delete_flag = 0
     </select>
 
+    <select id="count" resultType="long">
+        SELECT COUNT(1)
+        FROM df_task_execution
+        WHERE delete_flag = 0
+    </select>
+
+    <select id="selectPage" resultMap="TaskExecutionResultMap">
+        SELECT <include refid="TaskExecutionColumns"/>
+        FROM df_task_execution
+        WHERE delete_flag = 0
+        ORDER BY created_time DESC, id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
     <update id="updateStatus">
         UPDATE df_task_execution
         SET status = #{status},
+            end_time = CASE WHEN #{status} IN ('SUCCESS', 'FAILED', 'STOPPED') THEN CURRENT_TIMESTAMP ELSE end_time END,
+            error_message = #{errorMessage},
             updated_by = #{updatedBy}
         WHERE execution_id = #{executionId}
           AND delete_flag = 0

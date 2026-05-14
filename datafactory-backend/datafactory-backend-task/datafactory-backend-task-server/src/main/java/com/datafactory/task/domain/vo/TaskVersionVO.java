@@ -19,6 +19,9 @@ public class TaskVersionVO {
     private String testStatus;
     private Long testExecutionId;
     private Long rollbackFromVersionId;
+    private String changeLog;
+    private Integer isCurrent;
+    private Integer envStatus;
     private LocalDateTime publishTime;
     private Long createdBy;
     private LocalDateTime createdAt;

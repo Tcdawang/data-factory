@@ -1,6 +1,7 @@
 package com.datafactory.executor.service.impl;
 
 import com.datafactory.common.exception.BizException;
+import com.datafactory.common.result.PageResult;
 import com.datafactory.executor.domain.entity.NodeExecutionLog;
 import com.datafactory.executor.domain.entity.TaskExecution;
 import com.datafactory.executor.domain.vo.ExecutionStatusVO;
@@ -24,6 +25,19 @@ public class ExecutionQueryServiceImpl implements ExecutionQueryService {
                                      NodeExecutionLogMapper nodeExecutionLogMapper) {
         this.taskExecutionMapper = taskExecutionMapper;
         this.nodeExecutionLogMapper = nodeExecutionLogMapper;
+    }
+
+    @Override
+    public PageResult<ExecutionStatusVO> pageExecutions(Integer pageNo, Integer pageSize) {
+        int normalizedPageNo = pageNo == null || pageNo < 1 ? 1 : pageNo;
+        int normalizedPageSize = pageSize == null || pageSize < 1 ? 10 : Math.min(pageSize, 100);
+        long total = taskExecutionMapper.count();
+        List<ExecutionStatusVO> records = taskExecutionMapper
+                .selectPage((long) (normalizedPageNo - 1) * normalizedPageSize, normalizedPageSize)
+                .stream()
+                .map(this::toStatusVO)
+                .toList();
+        return new PageResult<>(records, total, normalizedPageNo, normalizedPageSize);
     }
 
     @Override

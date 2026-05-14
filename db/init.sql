@@ -1,6 +1,21 @@
 CREATE DATABASE IF NOT EXISTS data_factory DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE data_factory;
 
+-- 重新初始化数据库时先删除旧表。执行本文件会清空以下业务表数据。
+DROP TABLE IF EXISTS df_open_api_call_log;
+DROP TABLE IF EXISTS df_open_api;
+DROP TABLE IF EXISTS df_datasource;
+DROP TABLE IF EXISTS df_node_execution;
+DROP TABLE IF EXISTS df_task_execution;
+DROP TABLE IF EXISTS df_node_execution_log;
+DROP TABLE IF EXISTS df_task_trigger;
+DROP TABLE IF EXISTS df_task_publish_record;
+DROP TABLE IF EXISTS df_task_edge;
+DROP TABLE IF EXISTS df_task_node;
+DROP TABLE IF EXISTS df_task_version;
+DROP TABLE IF EXISTS df_task;
+DROP TABLE IF EXISTS df_task_category;
+
 CREATE TABLE IF NOT EXISTS df_task_category (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '任务分类ID',
     parent_id BIGINT DEFAULT NULL COMMENT '父分类ID，逻辑外键',
@@ -51,6 +66,9 @@ CREATE TABLE IF NOT EXISTS df_task_version (
     test_status VARCHAR(30) NOT NULL DEFAULT 'UNTESTED' COMMENT '测试状态：UNTESTED/PASSED/FAILED',
     test_execution_id BIGINT DEFAULT NULL COMMENT '最近一次测试执行ID，逻辑外键',
     rollback_from_version_id BIGINT DEFAULT NULL COMMENT '回滚来源版本ID，逻辑外键',
+    change_log TEXT DEFAULT NULL COMMENT '变更说明',
+    is_current TINYINT NOT NULL DEFAULT 0 COMMENT '是否当前版本：0否，1是',
+    env_status TINYINT NOT NULL DEFAULT 1 COMMENT '环境状态：0停用，1启用',
     publish_time DATETIME DEFAULT NULL COMMENT '发布时间',
     created_by BIGINT DEFAULT NULL COMMENT '创建人ID',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -62,6 +80,7 @@ CREATE TABLE IF NOT EXISTS df_task_version (
     KEY idx_version_status (version_status),
     KEY idx_publish_status (publish_status),
     KEY idx_test_status (test_status),
+    KEY idx_task_env_current (task_id, env, is_current),
     KEY idx_publish_time (publish_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务版本表';
 
@@ -114,7 +133,7 @@ CREATE TABLE IF NOT EXISTS df_task_publish_record (
     task_version_id BIGINT NOT NULL COMMENT '任务版本ID，逻辑外键',
     source_env VARCHAR(20) DEFAULT NULL COMMENT '来源环境',
     target_env VARCHAR(20) NOT NULL COMMENT '目标环境',
-    publish_type VARCHAR(30) NOT NULL COMMENT '发布类型：PUBLISH/DISABLE/ROLLBACK',
+    publish_type VARCHAR(30) NOT NULL COMMENT '发布类型：PUBLISH/PROMOTE/DISABLE/ROLLBACK/REVERT',
     before_version_id BIGINT DEFAULT NULL COMMENT '变更前版本ID，逻辑外键',
     after_version_id BIGINT DEFAULT NULL COMMENT '变更后版本ID，逻辑外键',
     remark VARCHAR(500) DEFAULT NULL COMMENT '备注',
@@ -164,7 +183,7 @@ CREATE TABLE IF NOT EXISTS df_node_execution_log (
     KEY idx_node_id (node_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='节点执行日志表';
 
-CREATE TABLE IF NOT EXISTS df_task_execution (
+CREATE TABLE df_task_execution (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     task_id BIGINT NOT NULL COMMENT '任务ID',
     task_code VARCHAR(64) NOT NULL COMMENT '任务编码',
@@ -209,3 +228,59 @@ CREATE TABLE IF NOT EXISTS df_node_execution (
     KEY idx_execution_status (execution_status),
     KEY idx_start_time (start_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='节点执行日志表';
+
+CREATE TABLE IF NOT EXISTS df_datasource (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '数据源ID',
+    datasource_name VARCHAR(100) NOT NULL COMMENT '数据源名称',
+    datasource_type VARCHAR(30) NOT NULL COMMENT '数据库类型：MYSQL',
+    description VARCHAR(500) DEFAULT NULL COMMENT '数据源描述',
+    jdbc_url VARCHAR(500) NOT NULL COMMENT 'JDBC连接地址',
+    username VARCHAR(100) DEFAULT NULL COMMENT '数据库用户名',
+    password
+    VARCHAR(200) DEFAULT NULL COMMENT '数据库密码',
+    status VARCHAR(30) NOT NULL DEFAULT 'UNPUBLISHED' COMMENT '应用状态：UNPUBLISHED/PUBLISHED/DISABLED',
+    created_by BIGINT DEFAULT NULL COMMENT '创建人ID',
+    updated_by BIGINT DEFAULT NULL COMMENT '更新人ID',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0否，1是',
+    KEY idx_datasource_name (datasource_name),
+    KEY idx_jdbc_url (jdbc_url),
+    KEY idx_datasource_type (datasource_type),
+    KEY idx_status (status),
+    KEY idx_updated_at (updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据源表';
+
+CREATE TABLE IF NOT EXISTS df_open_api (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '开放接口ID',
+    api_name VARCHAR(100) NOT NULL COMMENT '接口名称',
+    api_path VARCHAR(200) NOT NULL COMMENT '接口路径',
+    task_id BIGINT NOT NULL COMMENT '绑定任务ID',
+    api_key VARCHAR(200) DEFAULT NULL COMMENT 'API Key',
+    status VARCHAR(30) NOT NULL DEFAULT 'DISABLED' COMMENT '状态：ENABLED/DISABLED',
+    created_by BIGINT DEFAULT NULL COMMENT '创建人ID',
+    updated_by BIGINT DEFAULT NULL COMMENT '更新人ID',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0否，1是',
+    UNIQUE KEY uk_api_path_deleted (api_path, deleted),
+    KEY idx_task_id (task_id),
+    KEY idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='开放接口表';
+
+CREATE TABLE IF NOT EXISTS df_open_api_call_log (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '调用日志ID',
+    open_api_id BIGINT NOT NULL COMMENT '开放接口ID',
+    api_path VARCHAR(200) NOT NULL COMMENT '接口路径',
+    task_id BIGINT NOT NULL COMMENT '任务ID',
+    execution_id VARCHAR(64) DEFAULT NULL COMMENT '执行批次ID',
+    request_json LONGTEXT DEFAULT NULL COMMENT '请求JSON',
+    response_json LONGTEXT DEFAULT NULL COMMENT '响应JSON',
+    status VARCHAR(30) NOT NULL COMMENT '调用状态',
+    error_message TEXT DEFAULT NULL COMMENT '错误信息',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    KEY idx_open_api_id (open_api_id),
+    KEY idx_task_id (task_id),
+    KEY idx_execution_id (execution_id),
+    KEY idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='开放接口调用日志表';
