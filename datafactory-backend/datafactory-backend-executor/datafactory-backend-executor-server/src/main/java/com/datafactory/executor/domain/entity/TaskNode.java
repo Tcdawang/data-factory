@@ -7,6 +7,8 @@ public class TaskNode {
     private String nodeKey;
     private String nodeName;
     private String nodeType;
+    private Long refResourceId;
+    private String refResourceType;
     private String configJson;
     private Integer positionX;
     private Integer positionY;

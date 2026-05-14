@@ -1,14 +1,19 @@
 package com.datafactory.openapi.service.impl;
 
 import com.datafactory.common.exception.BizException;
+import com.datafactory.common.result.Result;
 import com.datafactory.openapi.domain.CallResultVO;
+import com.datafactory.openapi.domain.ExecutionRunVO;
 import com.datafactory.openapi.domain.OpenApi;
+import com.datafactory.openapi.domain.OpenApiCallLog;
 import com.datafactory.openapi.domain.OpenApiDTO;
+import com.datafactory.openapi.feign.ExecutorClient;
+import com.datafactory.openapi.mapper.OpenApiCallLogMapper;
 import com.datafactory.openapi.mapper.OpenApiMapper;
 import com.datafactory.openapi.service.OpenApiService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
@@ -17,10 +22,18 @@ import java.util.Map;
 public class OpenApiServiceImpl implements OpenApiService {
     private static final int BIZ_ERROR_CODE = 400;
     private final OpenApiMapper openApiMapper;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final OpenApiCallLogMapper openApiCallLogMapper;
+    private final ExecutorClient executorClient;
+    private final ObjectMapper objectMapper;
 
-    public OpenApiServiceImpl(OpenApiMapper openApiMapper) {
+    public OpenApiServiceImpl(OpenApiMapper openApiMapper,
+                              OpenApiCallLogMapper openApiCallLogMapper,
+                              ExecutorClient executorClient,
+                              ObjectMapper objectMapper) {
         this.openApiMapper = openApiMapper;
+        this.openApiCallLogMapper = openApiCallLogMapper;
+        this.executorClient = executorClient;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -85,23 +98,30 @@ public class OpenApiServiceImpl implements OpenApiService {
         }
         CallResultVO vo = new CallResultVO();
         vo.setTaskId(openApi.getTaskId());
+        OpenApiCallLog callLog = new OpenApiCallLog();
+        callLog.setOpenApiId(openApi.getId());
+        callLog.setApiPath(openApi.getApiPath());
+        callLog.setTaskId(openApi.getTaskId());
+        callLog.setRequestJson(toJson(requestBody));
         try {
-            Map<?, ?> response = restTemplate.postForObject(
-                    "http://localhost:18082/datafactory-executor/execution/tasks/" + openApi.getTaskId() + "/run?env=PROD&triggerType=API&triggerUser=openapi",
-                    requestBody,
-                    Map.class);
-            Object data = response == null ? null : response.get("data");
-            if (data instanceof Map<?, ?> dataMap) {
-                Object executionId = dataMap.get("executionId");
-                Object status = dataMap.get("status");
-                vo.setExecutionId(executionId == null ? null : executionId.toString());
-                vo.setStatus(status == null ? "ACCEPTED" : status.toString());
-            } else {
-                vo.setStatus("ACCEPTED");
+            Result<ExecutionRunVO> result = executorClient.runTask(openApi.getTaskId(), "PROD", "API", "openapi", requestBody == null ? Map.of() : requestBody);
+            if (result == null || result.getCode() == null || result.getCode() != 0 || result.getData() == null) {
+                throw new BizException(BIZ_ERROR_CODE, result == null ? "任务执行调用失败" : result.getMessage());
             }
+            ExecutionRunVO execution = result.getData();
+            vo.setExecutionId(execution.getExecutionId());
+            vo.setStatus(execution.getStatus());
+            callLog.setExecutionId(execution.getExecutionId());
+            callLog.setStatus(execution.getStatus());
+            callLog.setResponseJson(toJson(vo));
         } catch (Exception ex) {
+            callLog.setStatus("FAILED");
+            callLog.setErrorMessage(ex.getMessage());
+            callLog.setResponseJson("{}");
+            openApiCallLogMapper.insert(callLog);
             throw new BizException(BIZ_ERROR_CODE, "任务执行调用失败：" + ex.getMessage());
         }
+        openApiCallLogMapper.insert(callLog);
         return vo;
     }
 
@@ -138,5 +158,13 @@ public class OpenApiServiceImpl implements OpenApiService {
         openApi.setStatus(StringUtils.hasText(dto.getStatus()) ? dto.getStatus() : "DISABLED");
         openApi.setUpdatedBy(dto.getOperatorId());
         return openApi;
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value == null ? Map.of() : value);
+        } catch (Exception ex) {
+            return "{}";
+        }
     }
 }

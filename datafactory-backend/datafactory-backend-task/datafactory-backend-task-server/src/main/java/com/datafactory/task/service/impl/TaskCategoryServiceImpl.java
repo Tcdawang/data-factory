@@ -2,6 +2,7 @@ package com.datafactory.task.service.impl;
 
 import com.datafactory.common.exception.BizException;
 import com.datafactory.task.domain.dto.TaskCategoryCreateDTO;
+import com.datafactory.task.domain.dto.TaskCategoryUpdateDTO;
 import com.datafactory.task.domain.entity.TaskCategory;
 import com.datafactory.task.domain.vo.TaskCategoryVO;
 import com.datafactory.task.mapper.TaskCategoryMapper;
@@ -47,6 +48,42 @@ public class TaskCategoryServiceImpl implements TaskCategoryService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void update(Long id, TaskCategoryUpdateDTO updateDTO) {
+        TaskCategory existing = requireCategory(id);
+        if (!StringUtils.hasText(updateDTO.getCategoryName())) {
+            throw new BizException(BIZ_ERROR_CODE, "分类名称不能为空");
+        }
+        if (updateDTO.getParentId() != null && updateDTO.getParentId().equals(id)) {
+            throw new BizException(BIZ_ERROR_CODE, "上级分类不能选择自身");
+        }
+        if (taskCategoryMapper.selectByCategoryNameExcludeId(updateDTO.getCategoryName(), updateDTO.getParentId(), id) != null) {
+            throw new BizException(BIZ_ERROR_CODE, "同级分类名称已存在");
+        }
+
+        TaskCategory category = new TaskCategory();
+        category.setId(existing.getId());
+        category.setParentId(updateDTO.getParentId());
+        category.setCategoryName(updateDTO.getCategoryName());
+        category.setSortNo(updateDTO.getSortNo() == null ? 0 : updateDTO.getSortNo());
+        category.setUpdatedBy(updateDTO.getUpdatedBy());
+        taskCategoryMapper.update(category);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void delete(Long id, Long updatedBy) {
+        requireCategory(id);
+        if (taskCategoryMapper.countChildren(id) > 0) {
+            throw new BizException(BIZ_ERROR_CODE, "分类下存在子分类，不能删除");
+        }
+        if (taskCategoryMapper.countTasks(id) > 0) {
+            throw new BizException(BIZ_ERROR_CODE, "分类下存在任务，不能删除");
+        }
+        taskCategoryMapper.delete(id, updatedBy);
+    }
+
+    @Override
     public List<TaskCategoryVO> tree() {
         List<TaskCategory> categories = taskCategoryMapper.selectAll();
         Map<Long, TaskCategoryVO> categoryMap = new LinkedHashMap<>();
@@ -79,5 +116,16 @@ public class TaskCategoryServiceImpl implements TaskCategoryService {
         vo.setLabel(category.getCategoryName());
         vo.setSortNo(category.getSortNo());
         return vo;
+    }
+
+    private TaskCategory requireCategory(Long id) {
+        if (id == null) {
+            throw new BizException(BIZ_ERROR_CODE, "分类ID不能为空");
+        }
+        TaskCategory category = taskCategoryMapper.selectById(id);
+        if (category == null) {
+            throw new BizException(BIZ_ERROR_CODE, "分类不存在");
+        }
+        return category;
     }
 }

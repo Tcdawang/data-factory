@@ -31,6 +31,8 @@ import com.datafactory.task.mapper.TaskNodeMapper;
 import com.datafactory.task.mapper.TaskPublishRecordMapper;
 import com.datafactory.task.mapper.TaskVersionMapper;
 import com.datafactory.task.service.TaskService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -61,17 +63,20 @@ public class TaskServiceImpl implements TaskService {
     private final TaskNodeMapper taskNodeMapper;
     private final TaskEdgeMapper taskEdgeMapper;
     private final TaskPublishRecordMapper taskPublishRecordMapper;
+    private final ObjectMapper objectMapper;
 
     public TaskServiceImpl(TaskMapper taskMapper,
                            TaskVersionMapper taskVersionMapper,
                            TaskNodeMapper taskNodeMapper,
                            TaskEdgeMapper taskEdgeMapper,
-                           TaskPublishRecordMapper taskPublishRecordMapper) {
+                           TaskPublishRecordMapper taskPublishRecordMapper,
+                           ObjectMapper objectMapper) {
         this.taskMapper = taskMapper;
         this.taskVersionMapper = taskVersionMapper;
         this.taskNodeMapper = taskNodeMapper;
         this.taskEdgeMapper = taskEdgeMapper;
         this.taskPublishRecordMapper = taskPublishRecordMapper;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -222,8 +227,12 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateDag(Long taskId, Long versionId, TaskDagSaveDTO saveDTO) {
+        if (saveDTO == null) {
+            throw new BizException(BIZ_ERROR_CODE, "DAG配置不能为空");
+        }
         TaskVersion version = requireVersion(taskId, versionId);
         ensureEditableVersion(version);
+        normalizeDagSaveDTO(saveDTO);
         version.setDagJson(defaultJson(saveDTO.getDagJson()));
         version.setDslJson(defaultJson(saveDTO.getDslJson()));
         version.setInputSchemaJson(saveDTO.getInputSchemaJson());
@@ -331,9 +340,9 @@ public class TaskServiceImpl implements TaskService {
         Task task = requireTask(taskId);
         if (task.getCurrentVersionId() != null) {
             taskVersionMapper.updatePublishStatus(task.getCurrentVersionId(), VERSION_STATUS_ARCHIVED, PUBLISH_STATUS_DISABLED, "任务停用");
+            insertPublishRecord(taskId, task.getCurrentVersionId(), null, DEFAULT_ENV, "DISABLE", task.getCurrentVersionId(), null, operatorId, "任务停用");
         }
         taskMapper.updatePublishState(taskId, "DISABLED", task.getCurrentVersionId(), operatorId);
-        insertPublishRecord(taskId, task.getCurrentVersionId(), null, DEFAULT_ENV, "DISABLE", task.getCurrentVersionId(), null, operatorId, "任务停用");
     }
 
     @Override
@@ -659,6 +668,39 @@ public class TaskServiceImpl implements TaskService {
         edge.setConditionExpr(source.getConditionExpr());
         edge.setSortOrder(source.getSortOrder());
         return edge;
+    }
+
+    private void normalizeDagSaveDTO(TaskDagSaveDTO saveDTO) {
+        if ((saveDTO.getNodes() == null || saveDTO.getNodes().isEmpty()) && StringUtils.hasText(saveDTO.getDagJson())) {
+            JsonNode dagNode = parseDagJson(saveDTO.getDagJson());
+            JsonNode nodesNode = dagNode.get("nodes");
+            if (nodesNode != null && nodesNode.isArray()) {
+                saveDTO.setNodes(objectMapper.convertValue(nodesNode,
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, TaskNodeDTO.class)));
+            }
+            JsonNode edgesNode = dagNode.get("edges");
+            if ((saveDTO.getEdges() == null || saveDTO.getEdges().isEmpty()) && edgesNode != null && edgesNode.isArray()) {
+                saveDTO.setEdges(objectMapper.convertValue(edgesNode,
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, TaskEdgeDTO.class)));
+            }
+        }
+        if (saveDTO.getNodes() == null || saveDTO.getNodes().isEmpty()) {
+            throw new BizException(BIZ_ERROR_CODE, "DAG节点不能为空，请保存画布节点后再发布");
+        }
+    }
+
+    private JsonNode parseDagJson(String dagJson) {
+        try {
+            JsonNode dagNode = objectMapper.readTree(dagJson);
+            if (dagNode == null || !dagNode.isObject()) {
+                throw new BizException(BIZ_ERROR_CODE, "DAG JSON格式错误");
+            }
+            return dagNode;
+        } catch (BizException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BizException(BIZ_ERROR_CODE, "DAG JSON格式错误");
+        }
     }
 
     private TaskNode toNode(Long taskId, Long versionId, TaskNodeDTO dto) {

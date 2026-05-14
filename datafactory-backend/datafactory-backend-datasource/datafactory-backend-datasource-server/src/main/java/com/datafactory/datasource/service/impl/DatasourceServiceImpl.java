@@ -8,12 +8,22 @@ import com.datafactory.datasource.domain.DatasourceQueryDTO;
 import com.datafactory.datasource.domain.TestResultVO;
 import com.datafactory.datasource.mapper.DatasourceMapper;
 import com.datafactory.datasource.service.DatasourceService;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.api.StatefulRedisConnection;
+import org.bson.Document;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 @Service
 public class DatasourceServiceImpl implements DatasourceService {
@@ -22,6 +32,10 @@ public class DatasourceServiceImpl implements DatasourceService {
     private static final String STATUS_PUBLISHED = "PUBLISHED";
     private static final String STATUS_DISABLED = "DISABLED";
     private static final String TYPE_MYSQL = "MYSQL";
+    private static final String TYPE_REDIS = "REDIS";
+    private static final String TYPE_MONGODB = "MONGODB";
+    private static final String TYPE_HTTP_API = "HTTP_API";
+    private static final Set<String> SUPPORTED_TYPES = Set.of(TYPE_MYSQL, TYPE_REDIS, TYPE_MONGODB, TYPE_HTTP_API);
     private final DatasourceMapper datasourceMapper;
 
     public DatasourceServiceImpl(DatasourceMapper datasourceMapper) {
@@ -92,10 +106,12 @@ public class DatasourceServiceImpl implements DatasourceService {
         Datasource datasource = require(id);
         TestResultVO vo = new TestResultVO();
         try {
-            if (TYPE_MYSQL.equalsIgnoreCase(datasource.getDatasourceType())) {
-                testMysql(datasource);
-            } else {
-                throw new BizException(BIZ_ERROR_CODE, "数据源类型不支持");
+            switch (normalizeType(datasource.getDatasourceType())) {
+                case TYPE_MYSQL -> testMysql(datasource);
+                case TYPE_REDIS -> testRedis(datasource);
+                case TYPE_MONGODB -> testMongoDb(datasource);
+                case TYPE_HTTP_API -> testHttpApi(datasource);
+                default -> throw new BizException(BIZ_ERROR_CODE, "数据源类型不支持");
             }
             vo.setSuccess(true);
             vo.setMessage("连接测试成功");
@@ -108,26 +124,50 @@ public class DatasourceServiceImpl implements DatasourceService {
 
     private void testMysql(Datasource datasource) throws Exception {
         if (!StringUtils.hasText(datasource.getJdbcUrl())) {
-            throw new BizException(BIZ_ERROR_CODE, "JDBC URL不能为空");
+            throw new BizException(BIZ_ERROR_CODE, "MySQL JDBC URL不能为空");
         }
         try (Connection ignored = DriverManager.getConnection(datasource.getJdbcUrl(), datasource.getUsername(), datasource.getPassword())) {
-            // Connection close is the success signal.
+        }
+    }
+
+    private void testRedis(Datasource datasource) {
+        if (!StringUtils.hasText(datasource.getJdbcUrl())) {
+            throw new BizException(BIZ_ERROR_CODE, "Redis URI不能为空");
+        }
+        RedisClient client = RedisClient.create(datasource.getJdbcUrl());
+        client.setDefaultTimeout(Duration.ofSeconds(5));
+        try (StatefulRedisConnection<String, String> connection = client.connect()) {
+            connection.sync().ping();
+        } finally {
+            client.shutdown();
+        }
+    }
+
+    private void testMongoDb(Datasource datasource) {
+        if (!StringUtils.hasText(datasource.getJdbcUrl())) {
+            throw new BizException(BIZ_ERROR_CODE, "MongoDB URI不能为空");
+        }
+        try (MongoClient client = MongoClients.create(datasource.getJdbcUrl())) {
+            client.getDatabase("admin").runCommand(new Document("ping", 1));
+        }
+    }
+
+    private void testHttpApi(Datasource datasource) throws Exception {
+        if (!StringUtils.hasText(datasource.getJdbcUrl())) {
+            throw new BizException(BIZ_ERROR_CODE, "HTTP API基础地址不能为空");
+        }
+        HttpURLConnection connection = (HttpURLConnection) URI.create(datasource.getJdbcUrl()).toURL().openConnection();
+        connection.setRequestMethod("GET");
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(5000);
+        int statusCode = connection.getResponseCode();
+        if (statusCode >= 500) {
+            throw new BizException(BIZ_ERROR_CODE, "HTTP API连接测试失败，状态码：" + statusCode);
         }
     }
 
     private void validate(DatasourceDTO dto) {
-        if (dto == null || !StringUtils.hasText(dto.getDatasourceName())) {
-            throw new BizException(BIZ_ERROR_CODE, "数据源名称不能为空");
-        }
-        if (!dto.getDatasourceName().matches("^[\\u4e00-\\u9fa5A-Za-z0-9_]+$")) {
-            throw new BizException(BIZ_ERROR_CODE, "数据源名称只支持中英文、数字、下划线");
-        }
-        if (!TYPE_MYSQL.equalsIgnoreCase(dto.getDatasourceType())) {
-            throw new BizException(BIZ_ERROR_CODE, "数据库类型仅支持MYSQL");
-        }
-        if (!StringUtils.hasText(dto.getJdbcUrl())) {
-            throw new BizException(BIZ_ERROR_CODE, "连接信息不能为空");
-        }
+        validateCommon(dto);
         if (datasourceMapper.countByName(dto.getDatasourceName(), null) > 0) {
             throw new BizException(BIZ_ERROR_CODE, "数据源名称已存在");
         }
@@ -137,23 +177,28 @@ public class DatasourceServiceImpl implements DatasourceService {
     }
 
     private void validateForUpdate(Long id, DatasourceDTO dto) {
+        validateCommon(dto);
+        if (datasourceMapper.countByName(dto.getDatasourceName(), id) > 0) {
+            throw new BizException(BIZ_ERROR_CODE, "数据源名称已存在");
+        }
+        if (datasourceMapper.countByJdbcUrl(dto.getJdbcUrl(), id) > 0) {
+            throw new BizException(BIZ_ERROR_CODE, "连接信息已存在");
+        }
+    }
+
+    private void validateCommon(DatasourceDTO dto) {
         if (dto == null || !StringUtils.hasText(dto.getDatasourceName())) {
             throw new BizException(BIZ_ERROR_CODE, "数据源名称不能为空");
         }
         if (!dto.getDatasourceName().matches("^[\\u4e00-\\u9fa5A-Za-z0-9_]+$")) {
             throw new BizException(BIZ_ERROR_CODE, "数据源名称只支持中英文、数字、下划线");
         }
-        if (!TYPE_MYSQL.equalsIgnoreCase(dto.getDatasourceType())) {
-            throw new BizException(BIZ_ERROR_CODE, "数据库类型仅支持MYSQL");
+        String datasourceType = normalizeType(dto.getDatasourceType());
+        if (!SUPPORTED_TYPES.contains(datasourceType)) {
+            throw new BizException(BIZ_ERROR_CODE, "数据源类型仅支持MYSQL/REDIS/MONGODB/HTTP_API");
         }
         if (!StringUtils.hasText(dto.getJdbcUrl())) {
             throw new BizException(BIZ_ERROR_CODE, "连接信息不能为空");
-        }
-        if (datasourceMapper.countByName(dto.getDatasourceName(), id) > 0) {
-            throw new BizException(BIZ_ERROR_CODE, "数据源名称已存在");
-        }
-        if (datasourceMapper.countByJdbcUrl(dto.getJdbcUrl(), id) > 0) {
-            throw new BizException(BIZ_ERROR_CODE, "连接信息已存在");
         }
     }
 
@@ -172,12 +217,16 @@ public class DatasourceServiceImpl implements DatasourceService {
         Datasource datasource = new Datasource();
         datasource.setId(id);
         datasource.setDatasourceName(dto.getDatasourceName());
-        datasource.setDatasourceType(TYPE_MYSQL);
+        datasource.setDatasourceType(normalizeType(dto.getDatasourceType()));
         datasource.setDescription(dto.getDescription());
         datasource.setJdbcUrl(dto.getJdbcUrl());
         datasource.setUsername(dto.getUsername());
         datasource.setPassword(dto.getPassword());
         datasource.setUpdatedBy(dto.getOperatorId());
         return datasource;
+    }
+
+    private String normalizeType(String datasourceType) {
+        return StringUtils.hasText(datasourceType) ? datasourceType.trim().toUpperCase(Locale.ROOT) : TYPE_MYSQL;
     }
 }

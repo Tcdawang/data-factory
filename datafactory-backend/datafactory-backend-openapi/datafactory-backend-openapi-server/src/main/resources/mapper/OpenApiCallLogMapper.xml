@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datafactory.openapi.mapper.OpenApiCallLogMapper">
+
+    <insert id="insert" parameterType="com.datafactory.openapi.domain.OpenApiCallLog" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO df_open_api_call_log (
+            open_api_id,
+            api_path,
+            task_id,
+            execution_id,
+            request_json,
+            response_json,
+            status,
+            error_message
+        )
+        VALUES (
+            #{openApiId},
+            #{apiPath},
+            #{taskId},
+            #{executionId},
+            #{requestJson},
+            #{responseJson},
+            #{status},
+            #{errorMessage}
+        )
+    </insert>
+</mapper>

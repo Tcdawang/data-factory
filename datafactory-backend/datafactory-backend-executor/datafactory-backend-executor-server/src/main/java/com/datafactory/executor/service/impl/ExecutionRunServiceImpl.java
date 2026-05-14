@@ -3,12 +3,14 @@ package com.datafactory.executor.service.impl;
 import com.datafactory.common.exception.BizException;
 import com.datafactory.common.result.Result;
 import com.datafactory.executor.domain.dto.TaskVersionTestStatusUpdateDTO;
+import com.datafactory.executor.domain.entity.Datasource;
 import com.datafactory.executor.domain.entity.NodeExecutionLog;
 import com.datafactory.executor.domain.entity.TaskAggregation;
 import com.datafactory.executor.domain.entity.TaskEdge;
 import com.datafactory.executor.domain.entity.TaskExecution;
 import com.datafactory.executor.domain.entity.TaskNode;
 import com.datafactory.executor.domain.vo.ExecutionRunVO;
+import com.datafactory.executor.feign.DatasourceServiceClient;
 import com.datafactory.executor.feign.TaskServiceClient;
 import com.datafactory.executor.mapper.NodeExecutionLogMapper;
 import com.datafactory.executor.mapper.TaskExecutionMapper;
@@ -16,6 +18,7 @@ import com.datafactory.executor.service.ExecutionRunService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -23,34 +26,49 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class ExecutionRunServiceImpl implements ExecutionRunService {
 
     private static final int BIZ_ERROR_CODE = 400;
+    private static final String REF_RESOURCE_TYPE_DATASOURCE = "DATASOURCE";
+    private static final String DATASOURCE_TYPE_HTTP_API = "HTTP_API";
+    private static final String DATASOURCE_TYPE_MYSQL = "MYSQL";
+    private static final int DATASOURCE_LOAD_MAX_ATTEMPTS = 3;
+    private static final Pattern WRITE_SQL_PATTERN = Pattern.compile("\\b(insert|update|delete|drop|alter|truncate|create|replace|merge|call|grant|revoke)\\b", Pattern.CASE_INSENSITIVE);
 
     private final TaskServiceClient taskServiceClient;
+    private final DatasourceServiceClient datasourceServiceClient;
     private final TaskExecutionMapper taskExecutionMapper;
     private final NodeExecutionLogMapper nodeExecutionLogMapper;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
 
     public ExecutionRunServiceImpl(TaskServiceClient taskServiceClient,
+                                   DatasourceServiceClient datasourceServiceClient,
                                    TaskExecutionMapper taskExecutionMapper,
                                    NodeExecutionLogMapper nodeExecutionLogMapper,
                                    ObjectMapper objectMapper) {
         this.taskServiceClient = taskServiceClient;
+        this.datasourceServiceClient = datasourceServiceClient;
         this.taskExecutionMapper = taskExecutionMapper;
         this.nodeExecutionLogMapper = nodeExecutionLogMapper;
         this.objectMapper = objectMapper;
@@ -236,6 +254,7 @@ public class ExecutionRunServiceImpl implements ExecutionRunService {
         return switch (nodeType) {
             case "START" -> context;
             case "API" -> executeApiNode(node, context);
+            case "SQL" -> executeSqlNode(node, context);
             case "MAPPING" -> executeMappingNode(node, context);
             case "SCRIPT" -> throw new BizException(BIZ_ERROR_CODE, "SCRIPT节点暂未接入脚本执行器");
             case "END" -> context.getOrDefault("last", context);
@@ -245,14 +264,239 @@ public class ExecutionRunServiceImpl implements ExecutionRunService {
 
     private Object executeApiNode(TaskNode node, Map<String, Object> context) {
         Map<String, Object> config = parseObject(node.getConfigJson());
-        String url = stringValue(config.get("url"));
+        String url = resolveApiUrl(node, config);
         if (!StringUtils.hasText(url)) {
             throw new BizException(BIZ_ERROR_CODE, "API节点缺少url配置");
         }
         String method = StringUtils.hasText(stringValue(config.get("method"))) ? stringValue(config.get("method")).toUpperCase(Locale.ROOT) : "GET";
         Object body = config.containsKey("body") ? config.get("body") : context.get("last");
-        ResponseEntity<Object> response = restTemplate.exchange(url, HttpMethod.valueOf(method), new HttpEntity<>(body), Object.class);
+        ResponseEntity<Object> response = restTemplate.exchange(url, HttpMethod.valueOf(method), new HttpEntity<>(body, resolveHeaders(config)), Object.class);
         return response.getBody();
+    }
+
+    private Object executeSqlNode(TaskNode node, Map<String, Object> context) {
+        Map<String, Object> config = parseObject(node.getConfigJson());
+        Datasource datasource = resolveDatasource(node, DATASOURCE_TYPE_MYSQL, "SQL节点只能引用MYSQL数据源");
+        String sql = stringValue(config.get("sql"));
+        if (!StringUtils.hasText(sql)) {
+            throw new BizException(BIZ_ERROR_CODE, "SQL节点缺少sql配置");
+        }
+        String trimmedSql = sql.trim();
+        validateReadonlySql(trimmedSql);
+        ParsedSql parsedSql = parseNamedSql(trimmedSql);
+        Map<String, Object> params = resolveSqlParams(config.get("params"), context);
+        String resultType = StringUtils.hasText(stringValue(config.get("resultType")))
+                ? stringValue(config.get("resultType")).toUpperCase(Locale.ROOT)
+                : "LIST";
+        try (Connection connection = DriverManager.getConnection(datasource.getJdbcUrl(), datasource.getUsername(), datasource.getPassword());
+             PreparedStatement statement = connection.prepareStatement(parsedSql.sql())) {
+            for (int index = 0; index < parsedSql.parameterNames().size(); index++) {
+                String paramName = parsedSql.parameterNames().get(index);
+                if (!params.containsKey(paramName)) {
+                    throw new BizException(BIZ_ERROR_CODE, "SQL参数未配置：" + paramName);
+                }
+                statement.setObject(index + 1, params.get(paramName));
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<Map<String, Object>> rows = readRows(resultSet);
+                if ("ONE".equals(resultType)) {
+                    return rows.isEmpty() ? null : rows.get(0);
+                }
+                return rows;
+            }
+        } catch (BizException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BizException(BIZ_ERROR_CODE, "SQL执行失败：" + ex.getMessage());
+        }
+    }
+
+    private void validateReadonlySql(String sql) {
+        String lowerSql = sql.toLowerCase(Locale.ROOT);
+        if (!lowerSql.startsWith("select")) {
+            throw new BizException(BIZ_ERROR_CODE, "SQL节点第一阶段仅允许SELECT查询");
+        }
+        String sqlWithoutTrailingSemicolon = lowerSql.endsWith(";") ? lowerSql.substring(0, lowerSql.length() - 1) : lowerSql;
+        if (sqlWithoutTrailingSemicolon.contains(";")) {
+            throw new BizException(BIZ_ERROR_CODE, "SQL节点不允许执行多语句");
+        }
+        if (WRITE_SQL_PATTERN.matcher(sql).find()) {
+            throw new BizException(BIZ_ERROR_CODE, "SQL节点不允许执行写操作或DDL语句");
+        }
+    }
+
+    private String resolveApiUrl(TaskNode node, Map<String, Object> config) {
+        String directUrl = stringValue(config.get("url"));
+        if (StringUtils.hasText(directUrl)) {
+            return directUrl;
+        }
+        Datasource datasource = resolveDatasource(node, DATASOURCE_TYPE_HTTP_API, "API节点只能引用HTTP_API数据源");
+        String baseUrl = trimRight(datasource.getJdbcUrl(), "/");
+        String path = stringValue(config.get("path"));
+        if (!StringUtils.hasText(path)) {
+            return baseUrl;
+        }
+        return baseUrl + "/" + trimLeft(path, "/");
+    }
+
+    private Datasource resolveDatasource(TaskNode node, String datasourceType, String typeErrorMessage) {
+        if (node.getRefResourceId() == null) {
+            throw new BizException(BIZ_ERROR_CODE, "节点缺少数据源配置");
+        }
+        if (StringUtils.hasText(node.getRefResourceType())
+                && !REF_RESOURCE_TYPE_DATASOURCE.equalsIgnoreCase(node.getRefResourceType())) {
+            throw new BizException(BIZ_ERROR_CODE, "节点仅支持引用DATASOURCE资源");
+        }
+        Datasource datasource = loadDatasource(node.getRefResourceId());
+        if (!datasourceType.equalsIgnoreCase(datasource.getDatasourceType())) {
+            throw new BizException(BIZ_ERROR_CODE, typeErrorMessage);
+        }
+        if (!"PUBLISHED".equals(datasource.getStatus())) {
+            throw new BizException(BIZ_ERROR_CODE, "数据源未发布");
+        }
+        if (!StringUtils.hasText(datasource.getJdbcUrl())) {
+            throw new BizException(BIZ_ERROR_CODE, "数据源连接信息不能为空");
+        }
+        return datasource;
+    }
+
+    private HttpHeaders resolveHeaders(Map<String, Object> config) {
+        HttpHeaders headers = new HttpHeaders();
+        Object headersValue = config.get("headers");
+        if (headersValue instanceof Map<?, ?> headersMap) {
+            for (Map.Entry<?, ?> entry : headersMap.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    headers.add(String.valueOf(entry.getKey()), String.valueOf(entry.getValue()));
+                }
+            }
+        }
+        return headers;
+    }
+
+    private Datasource loadDatasource(Long datasourceId) {
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= DATASOURCE_LOAD_MAX_ATTEMPTS; attempt++) {
+            try {
+                Result<Datasource> result = datasourceServiceClient.get(datasourceId);
+                if (result != null && result.getCode() != null && result.getCode() == 0 && result.getData() != null) {
+                    return result.getData();
+                }
+                String message = result == null ? null : result.getMessage();
+                throw new BizException(BIZ_ERROR_CODE, StringUtils.hasText(message) ? message : "数据源服务返回空配置");
+            } catch (Exception ex) {
+                lastException = ex;
+                if (attempt < DATASOURCE_LOAD_MAX_ATTEMPTS) {
+                    sleepBeforeRetry(attempt);
+                }
+            }
+        }
+        String message = lastException == null ? "未知错误" : lastException.getMessage();
+        throw new BizException(BIZ_ERROR_CODE, "获取数据源配置失败，datasourceId=" + datasourceId + "，" + message);
+    }
+
+    private void sleepBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(200L * attempt);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new BizException(BIZ_ERROR_CODE, "获取数据源配置被中断");
+        }
+    }
+
+    private String trimLeft(String value, String token) {
+        String result = value;
+        while (result.startsWith(token)) {
+            result = result.substring(token.length());
+        }
+        return result;
+    }
+
+    private String trimRight(String value, String token) {
+        String result = value;
+        while (result.endsWith(token)) {
+            result = result.substring(0, result.length() - token.length());
+        }
+        return result;
+    }
+
+    private ParsedSql parseNamedSql(String sql) {
+        StringBuilder parsedSql = new StringBuilder();
+        List<String> parameterNames = new ArrayList<>();
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+        for (int index = 0; index < sql.length(); index++) {
+            char current = sql.charAt(index);
+            if (current == '\'' && !inDoubleQuote) {
+                inSingleQuote = !inSingleQuote;
+                parsedSql.append(current);
+                continue;
+            }
+            if (current == '"' && !inSingleQuote) {
+                inDoubleQuote = !inDoubleQuote;
+                parsedSql.append(current);
+                continue;
+            }
+            if (current == ':' && !inSingleQuote && !inDoubleQuote && index + 1 < sql.length()
+                    && Character.isJavaIdentifierStart(sql.charAt(index + 1))) {
+                int end = index + 2;
+                while (end < sql.length() && Character.isJavaIdentifierPart(sql.charAt(end))) {
+                    end++;
+                }
+                parameterNames.add(sql.substring(index + 1, end));
+                parsedSql.append('?');
+                index = end - 1;
+                continue;
+            }
+            parsedSql.append(current);
+        }
+        return new ParsedSql(parsedSql.toString(), parameterNames);
+    }
+
+    private Map<String, Object> resolveSqlParams(Object paramsValue, Map<String, Object> context) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        if (!(paramsValue instanceof Map<?, ?> paramsMap)) {
+            return params;
+        }
+        for (Map.Entry<?, ?> entry : paramsMap.entrySet()) {
+            if (entry.getKey() != null) {
+                params.put(String.valueOf(entry.getKey()), resolveExpression(entry.getValue(), context));
+            }
+        }
+        return params;
+    }
+
+    private Object resolveExpression(Object value, Map<String, Object> context) {
+        if (!(value instanceof String expression) || !expression.startsWith("$.")) {
+            return value;
+        }
+        String[] parts = expression.substring(2).split("\\.");
+        Object current = context;
+        for (String part : parts) {
+            if (current instanceof Map<?, ?> map) {
+                current = map.get(part);
+            } else {
+                return null;
+            }
+        }
+        return current;
+    }
+
+    private List<Map<String, Object>> readRows(ResultSet resultSet) throws Exception {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        ResultSetMetaData metaData = resultSet.getMetaData();
+        int columnCount = metaData.getColumnCount();
+        while (resultSet.next()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            for (int index = 1; index <= columnCount; index++) {
+                String label = metaData.getColumnLabel(index);
+                row.put(StringUtils.hasText(label) ? label : metaData.getColumnName(index), resultSet.getObject(index));
+            }
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    private record ParsedSql(String sql, List<String> parameterNames) {
     }
 
     private Object executeMappingNode(TaskNode node, Map<String, Object> context) {

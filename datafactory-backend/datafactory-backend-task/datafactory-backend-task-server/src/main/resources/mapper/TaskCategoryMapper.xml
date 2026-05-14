@@ -25,6 +25,24 @@
         VALUES (#{parentId}, #{categoryName}, #{sortNo}, #{createdBy}, #{updatedBy})
     </insert>
 
+    <update id="update" parameterType="com.datafactory.task.domain.entity.TaskCategory">
+        UPDATE df_task_category
+        SET parent_id = #{parentId},
+            category_name = #{categoryName},
+            sort_no = #{sortNo},
+            updated_by = #{updatedBy}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <update id="delete">
+        UPDATE df_task_category
+        SET deleted = 1,
+            updated_by = #{updatedBy}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
     <select id="selectByCategoryName" resultMap="TaskCategoryResultMap">
         SELECT <include refid="TaskCategoryColumns"/>
         FROM df_task_category
@@ -39,6 +57,44 @@
             </otherwise>
         </choose>
         LIMIT 1
+    </select>
+
+    <select id="selectByCategoryNameExcludeId" resultMap="TaskCategoryResultMap">
+        SELECT <include refid="TaskCategoryColumns"/>
+        FROM df_task_category
+        WHERE category_name = #{categoryName}
+          AND deleted = 0
+          AND id != #{excludeId}
+        <choose>
+            <when test="parentId != null">
+              AND parent_id = #{parentId}
+            </when>
+            <otherwise>
+              AND parent_id IS NULL
+            </otherwise>
+        </choose>
+        LIMIT 1
+    </select>
+
+    <select id="selectById" resultMap="TaskCategoryResultMap">
+        SELECT <include refid="TaskCategoryColumns"/>
+        FROM df_task_category
+        WHERE id = #{id}
+          AND deleted = 0
+    </select>
+
+    <select id="countChildren" resultType="long">
+        SELECT COUNT(1)
+        FROM df_task_category
+        WHERE parent_id = #{parentId}
+          AND deleted = 0
+    </select>
+
+    <select id="countTasks" resultType="long">
+        SELECT COUNT(1)
+        FROM df_task
+        WHERE category_id = #{categoryId}
+          AND deleted = 0
     </select>
 
     <select id="selectAll" resultMap="TaskCategoryResultMap">

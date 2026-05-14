@@ -34,31 +34,31 @@ public class OpenApiController {
     }
 
     @PutMapping("/{id}")
-    public Result<Void> update(@PathVariable Long id, @RequestBody OpenApiDTO dto) {
+    public Result<Void> update(@PathVariable("id") Long id, @RequestBody OpenApiDTO dto) {
         openApiService.update(id, dto);
         return Result.success(null);
     }
 
     @DeleteMapping("/{id}")
-    public Result<Void> delete(@PathVariable Long id, @RequestParam(value = "operatorId", required = false) Long operatorId) {
+    public Result<Void> delete(@PathVariable("id") Long id, @RequestParam(value = "operatorId", required = false) Long operatorId) {
         openApiService.delete(id, operatorId);
         return Result.success(null);
     }
 
     @PostMapping("/{id}/enable")
-    public Result<Void> enable(@PathVariable Long id, @RequestParam(value = "operatorId", required = false) Long operatorId) {
+    public Result<Void> enable(@PathVariable("id") Long id, @RequestParam(value = "operatorId", required = false) Long operatorId) {
         openApiService.enable(id, operatorId);
         return Result.success(null);
     }
 
     @PostMapping("/{id}/disable")
-    public Result<Void> disable(@PathVariable Long id, @RequestParam(value = "operatorId", required = false) Long operatorId) {
+    public Result<Void> disable(@PathVariable("id") Long id, @RequestParam(value = "operatorId", required = false) Long operatorId) {
         openApiService.disable(id, operatorId);
         return Result.success(null);
     }
 
     @GetMapping("/{id}")
-    public Result<OpenApi> get(@PathVariable Long id) {
+    public Result<OpenApi> get(@PathVariable("id") Long id) {
         return Result.success(openApiService.get(id));
     }
 
@@ -68,9 +68,16 @@ public class OpenApiController {
     }
 
     @PostMapping("/call/{apiPath}")
-    public Result<CallResultVO> call(@PathVariable String apiPath,
+    public Result<CallResultVO> call(@PathVariable("apiPath") String apiPath,
                                      @RequestHeader(value = "X-API-Key", required = false) String apiKey,
                                      @RequestBody(required = false) Map<String, Object> requestBody) {
+        return Result.success(openApiService.call(apiPath, apiKey, requestBody));
+    }
+
+    @PostMapping("/call")
+    public Result<CallResultVO> callByParam(@RequestParam("apiPath") String apiPath,
+                                            @RequestHeader(value = "X-API-Key", required = false) String apiKey,
+                                            @RequestBody(required = false) Map<String, Object> requestBody) {
         return Result.success(openApiService.call(apiPath, apiKey, requestBody));
     }
 }
