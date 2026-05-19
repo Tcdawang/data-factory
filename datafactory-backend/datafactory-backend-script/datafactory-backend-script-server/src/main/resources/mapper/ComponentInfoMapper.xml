@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datafactory.script.mapper.ComponentInfoMapper">
+
+    <resultMap id="BaseResultMap" type="com.datafactory.script.domain.entity.ComponentInfo">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="type" property="type"/>
+        <result column="sub_type" property="subType"/>
+        <result column="description" property="description"/>
+        <result column="icon" property="icon"/>
+        <result column="version" property="version"/>
+        <result column="status" property="status"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="updated_by" property="updatedBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, name, type, sub_type, description, icon, version, status, created_by, updated_by, created_at, updated_at, deleted
+    </sql>
+
+    <sql id="Query_Condition">
+        <where>
+            deleted = 0
+            <if test="name != null and name != ''">
+                AND name LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="type != null and type != ''">
+                AND type = #{type}
+            </if>
+            <if test="subType != null and subType != ''">
+                AND sub_type = #{subType}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+    </sql>
+
+    <insert id="insert" parameterType="com.datafactory.script.domain.entity.ComponentInfo" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO component_info (name, type, sub_type, description, icon, version, status, created_by, updated_by, created_at, updated_at, deleted)
+        VALUES (#{name}, #{type}, #{subType}, #{description}, #{icon}, #{version}, #{status}, #{createdBy}, #{updatedBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <update id="updateById" parameterType="com.datafactory.script.domain.entity.ComponentInfo">
+        UPDATE component_info
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="type != null">type = #{type},</if>
+            <if test="subType != null">sub_type = #{subType},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="icon != null">icon = #{icon},</if>
+            <if test="version != null">version = #{version},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updatedBy != null">updated_by = #{updatedBy},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="deleteById">
+        UPDATE component_info SET deleted = 1, updated_at = NOW() WHERE id = #{id}
+    </update>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM component_info
+        WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM component_info
+        <include refid="Query_Condition"/>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectPage" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM component_info
+        <include refid="Query_Condition"/>
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="selectCount" resultType="int">
+        SELECT COUNT(*)
+        FROM component_info
+        <include refid="Query_Condition"/>
+    </select>
+</mapper>
